@@ -1,16 +1,33 @@
+# Requires MySQLdb package installed:
+#
+#   sudo apt-get install libmariadbclient-dev
+#   pip install mysqlclient
+#
 # Requires a mysql db on place:
 #
 #   sudo mysql -u -p
 #   CREATE DATABASE temp_database;
 #   SHOW DATABASES;
-#   USE temp_database;
-#   CREATE TABLE tempLog(datetime DATETIME NOT NULL, temperature FLOAT(5,2) NOT NULL);
-#   DESCRIBE tempLog;
+#   USE mydatabase2;
+#   CREATE TABLE tempLog0(datetime DATETIME NOT NULL, temperature FLOAT(5,2) NOT NULL);
+#   CREATE TABLE tempLog1(datetime DATETIME NOT NULL, temperature FLOAT(5,2) NOT NULL);
+#   CREATE TABLE freqLog0(datetime DATETIME NOT NULL, temperature FLOAT(6,2) NOT NULL);
+#   CREATE TABLE freqLog1(datetime DATETIME NOT NULL, temperature FLOAT(6,2) NOT NULL);
+#   DESCRIBE tempLog0;
+#
+# Grafana graph configuration
+#  SELECT
+#   UNIX_TIMESTAMP(datetime) as time_sec,
+#   frequency as value,
+#   'freqCore0' as metric
+#  FROM freqLog0
+# WHERE $__timeFilter(datetime)
+# ORDER BY datetime ASC
 
 import time
 import datetime
 import glob
-# import MySQLdb
+import MySQLdb
 from time import strftime
  
 # cat /sys/class/thermal/thermal_zone*/temp
@@ -21,11 +38,9 @@ temp1_sensor = '/sys/class/thermal/thermal_zone1/temp'
 # cat /proc/cpuinfo
 cpu_info = '/proc/cpuinfo'
 
-# TODO
-#
-# Variables for MySQL
-# db = MySQLdb.connect(host="localhost", user="root",passwd="password", db="temp_database")
-# cur = db.cursor()
+# Variables for MySQL access
+db = MySQLdb.connect(host="localhost", user="grafanaReader", passwd="password", db="mydatabase2")
+cur = db.cursor()
  
 def temp0Read():
     t = open(temp0_sensor, 'r')
@@ -80,23 +95,29 @@ while True:
     freq1 = freq1Read()
     print freq1
     
-#     datetimeWrite = (time.strftime("%Y-%m-%d ") + time.strftime("%H:%M:%S"))
-#     print datetimeWrite
-#     # classic mysql query/command (see mysql-workbench)
-#     sql = ("""INSERT INTO tempLog (datetime,temperature) VALUES (%s,%s)""",(datetimeWrite,temp))
-#     try:
-#         print "Writing to database..."
-#         # Execute the SQL command
-#         cur.execute(*sql)
-#         # Commit your changes in the database
-#         db.commit()
-#         print "Write Complete"
-#  
-#     except:
-#         # Rollback in case there is any error
-#         db.rollback()
-#         print "Failed writing to database"
-#  
-#     cur.close()
-#     db.close()
+    datetimeWrite = (time.strftime("%Y-%m-%d ") + time.strftime("%H:%M:%S"))
+    print datetimeWrite
+    # classic mysql query/command (see mysql-workbench)
+    sqlTempLog0 = ("""INSERT INTO tempLog0 (datetime,temperature) VALUES (%s,%s)""",(datetimeWrite,temp0))
+    sqlTempLog1 = ("""INSERT INTO tempLog1 (datetime,temperature) VALUES (%s,%s)""",(datetimeWrite,temp1))
+    sqlFreqLog0 = ("""INSERT INTO freqLog0 (datetime,frequency) VALUES (%s,%s)""",(datetimeWrite,freq0))
+    sqlFreqLog1 = ("""INSERT INTO freqLog1 (datetime,frequency) VALUES (%s,%s)""",(datetimeWrite,freq1))
+    try:
+        print "Writing to database..."
+        # Execute the SQL command
+        cur.execute(*sqlTempLog0)
+        cur.execute(*sqlTempLog1)
+        cur.execute(*sqlFreqLog0)
+        cur.execute(*sqlFreqLog1)
+        # Commit your changes in the database
+        db.commit()
+        print "Write Complete"
+ 
+    except:
+        # Rollback in case there is any error
+        db.rollback()
+        print "Failed writing to database"
+ 
+    cur.close()
+    db.close()
     break
